@@ -11,10 +11,26 @@ import openai
 from paddleocr import PaddleOCR
 import numpy as np
 from PyPDF2 import PdfReader
+import shutil
 
 # Load environment variables
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# Ensure PaddleOCR has writeable model directory in limited environments like Render
+os.environ["HOME"] = "/tmp"
+
+# Remove potentially corrupted model folders to force a clean download
+model_base = "/tmp/.paddleocr/whl"
+corrupt_dirs = [
+    "det/en/en_PP-OCRv3_det_infer",
+    "rec/en/en_PP-OCRv4_rec_infer",
+    "cls/ch_ppocr_mobile_v2.0_cls_infer"
+]
+for rel_path in corrupt_dirs:
+    full_path = os.path.join(model_base, rel_path)
+    if os.path.exists(full_path):
+        shutil.rmtree(full_path)
 
 # Initialize PaddleOCR (CPU version)
 ocr_model = PaddleOCR(use_angle_cls=True, lang='en', use_gpu=False)
@@ -43,6 +59,7 @@ def query_openai(prompt):
             model="gpt-3.5-turbo-1106",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
+            response_format="json"
         )
         return response['choices'][0]['message']['content']
     except Exception as e:
@@ -128,13 +145,11 @@ if uploaded_file:
             prompt = build_prompt(chunk)
             response = query_openai(prompt)
             if response:
-                match = re.search(r'\{.*\}', response, re.DOTALL)
-                if match:
-                    try:
-                        data = json.loads(match.group(0))
-                        all_results.append(data)
-                    except json.JSONDecodeError:
-                        st.warning("⚠️ Invalid JSON in response.")
+                try:
+                    data = json.loads(response)
+                    all_results.append(data)
+                except json.JSONDecodeError:
+                    st.warning("⚠️ Invalid JSON in response.")
 
         # Merge extracted fields
         final_result = {}

@@ -11,29 +11,13 @@ import openai
 from paddleocr import PaddleOCR
 import numpy as np
 from PyPDF2 import PdfReader
-import shutil
 
 # Load environment variables
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-# Ensure PaddleOCR has writeable model directory in limited environments like Render
-os.environ["HOME"] = "/tmp"
-
-# Remove potentially corrupted model folders to force a clean download
-model_base = "/tmp/.paddleocr/whl"
-corrupt_dirs = [
-    "det/en/en_PP-OCRv3_det_infer",
-    "rec/en/en_PP-OCRv4_rec_infer",
-    "cls/ch_ppocr_mobile_v2.0_cls_infer"
-]
-for rel_path in corrupt_dirs:
-    full_path = os.path.join(model_base, rel_path)
-    if os.path.exists(full_path):
-        shutil.rmtree(full_path)
-
-# Initialize PaddleOCR (CPU version)
-ocr_model = PaddleOCR(use_angle_cls=True, lang='en', use_gpu=False)
+# Initialize PaddleOCR (CPU version, disable angle classifier)
+ocr_model = PaddleOCR(use_angle_cls=False, lang='en', use_gpu=False)
 
 # Streamlit UI
 st.set_page_config(page_title="PDF Info Extractor", page_icon="🔍")
@@ -59,7 +43,6 @@ def query_openai(prompt):
             model="gpt-3.5-turbo-1106",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.2,
-            response_format="json"
         )
         return response['choices'][0]['message']['content']
     except Exception as e:
@@ -93,7 +76,7 @@ Respond ONLY in this JSON format:
 # OCR text from image
 def paddle_ocr_text(image: Image.Image):
     img_array = image.convert("RGB")
-    results = ocr_model.ocr(np.array(img_array), cls=True)
+    results = ocr_model.ocr(np.array(img_array), cls=False)
     full_text = ""
     for line in results[0]:
         text = line[1][0]
@@ -128,14 +111,11 @@ if uploaded_file:
             tmp_file.write(uploaded_file.read())
             tmp_pdf_path = tmp_file.name
 
-        # Detect if scanned
         scanned = is_scanned_pdf(tmp_pdf_path)
         st.info("Detected **scanned PDF**. Using OCR." if scanned else "Detected **text-based PDF**. Extracting text directly.")
 
-        # Extract text
         extracted_text = extract_text_from_scanned_pdf(tmp_pdf_path) if scanned else extract_text_from_text_pdf(tmp_pdf_path)
 
-        # Split text into manageable chunks for GPT
         max_len = 3000
         chunks = [extracted_text[i:i + max_len] for i in range(0, len(extracted_text), max_len)]
 
@@ -145,20 +125,20 @@ if uploaded_file:
             prompt = build_prompt(chunk)
             response = query_openai(prompt)
             if response:
-                try:
-                    data = json.loads(response)
-                    all_results.append(data)
-                except json.JSONDecodeError:
-                    st.warning("⚠️ Invalid JSON in response.")
+                match = re.search(r'\{.*\}', response, re.DOTALL)
+                if match:
+                    try:
+                        data = json.loads(match.group(0))
+                        all_results.append(data)
+                    except json.JSONDecodeError:
+                        st.warning("⚠️ Invalid JSON in response.")
 
-        # Merge extracted fields
         final_result = {}
         for result in all_results:
             for key, value in result.items():
                 if key not in final_result or not final_result[key]:
                     final_result[key] = value
 
-        # Show results
         if final_result:
             df = pd.DataFrame([final_result])
             st.subheader("✅ Extracted Information")

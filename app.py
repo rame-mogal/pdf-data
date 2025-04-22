@@ -11,12 +11,16 @@ import openai
 from paddleocr import PaddleOCR
 import numpy as np
 from PyPDF2 import PdfReader
+import logging
+
+# Reduce PaddleOCR debug log clutter
+logging.getLogger("ppocr").setLevel(logging.WARNING)
 
 # Load environment variables
 load_dotenv()
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# Initialize PaddleOCR (CPU version, disable angle classifier)
+# Initialize PaddleOCR (CPU version, angle classifier disabled)
 ocr_model = PaddleOCR(use_angle_cls=False, lang='en', use_gpu=False)
 
 # Streamlit UI
@@ -131,7 +135,7 @@ if uploaded_file:
                         data = json.loads(match.group(0))
                         all_results.append(data)
                     except json.JSONDecodeError:
-                        st.warning("⚠️ Invalid JSON in response.")
+                        st.warning("\u26a0\ufe0f Invalid JSON in response.")
 
         final_result = {}
         for result in all_results:

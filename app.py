@@ -12,15 +12,19 @@ from paddleocr import PaddleOCR
 import numpy as np
 from PyPDF2 import PdfReader
 import logging
+import shutil
 
 # Reduce PaddleOCR debug log clutter
 logging.getLogger("ppocr").setLevel(logging.WARNING)
+
+# Cleanup old PaddleOCR classification model if it exists
+shutil.rmtree(os.path.expanduser("~/.paddleocr/whl/cls/ch_ppocr_mobile_v2.0_cls_infer"), ignore_errors=True)
 
 # Load environment variables
 load_dotenv()
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# Initialize PaddleOCR (CPU version, angle classifier disabled)
+# Initialize PaddleOCR (angle classifier disabled)
 ocr_model = PaddleOCR(use_angle_cls=False, lang='en', use_gpu=False)
 
 # Streamlit UI

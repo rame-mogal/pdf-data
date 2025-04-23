@@ -14,9 +14,6 @@ from PyPDF2 import PdfReader
 import logging
 import time
 
-# Set PaddleOCR cache to a writable directory
-os.environ["PADDLEOCR_HOME"] = "/tmp/paddleocr"
-
 # Reduce PaddleOCR debug log clutter
 logging.getLogger("ppocr").setLevel(logging.WARNING)
 
@@ -24,17 +21,27 @@ logging.getLogger("ppocr").setLevel(logging.WARNING)
 load_dotenv()
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# Retry logic for PaddleOCR model loading
+# Create writable model paths in temp
+base_model_dir = "/tmp/paddleocr/models"
+os.makedirs(base_model_dir, exist_ok=True)
+det_model_dir = os.path.join(base_model_dir, "det")
+rec_model_dir = os.path.join(base_model_dir, "rec")
+cls_model_dir = os.path.join(base_model_dir, "cls")
+
+# Retry logic for PaddleOCR model loading with custom model dirs
 ocr_model = None
 for attempt in range(3):
     try:
         ocr_model = PaddleOCR(
             use_angle_cls=False,
             lang='en',
-            use_gpu=False
+            use_gpu=False,
+            det_model_dir=det_model_dir,
+            rec_model_dir=rec_model_dir,
+            cls_model_dir=cls_model_dir
         )
         break
-    except FileNotFoundError as e:
+    except Exception as e:
         print(f"Attempt {attempt + 1}: Failed to load PaddleOCR - {e}")
         time.sleep(5)
 

@@ -12,20 +12,35 @@ from paddleocr import PaddleOCR
 import numpy as np
 from PyPDF2 import PdfReader
 import logging
-import shutil
+import time
+
+# Set PaddleOCR cache to a writable directory
+os.environ["PADDLEOCR_HOME"] = "/tmp/paddleocr"
 
 # Reduce PaddleOCR debug log clutter
 logging.getLogger("ppocr").setLevel(logging.WARNING)
-
-# Cleanup old PaddleOCR classification model if it exists
-shutil.rmtree(os.path.expanduser("~/.paddleocr/whl/cls/ch_ppocr_mobile_v2.0_cls_infer"), ignore_errors=True)
 
 # Load environment variables
 load_dotenv()
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# Initialize PaddleOCR (angle classifier disabled)
-ocr_model = PaddleOCR(use_angle_cls=False, lang='en', use_gpu=False)
+# Retry logic for PaddleOCR model loading
+ocr_model = None
+for attempt in range(3):
+    try:
+        ocr_model = PaddleOCR(
+            use_angle_cls=False,
+            lang='en',
+            use_gpu=False
+        )
+        break
+    except FileNotFoundError as e:
+        print(f"Attempt {attempt + 1}: Failed to load PaddleOCR - {e}")
+        time.sleep(5)
+
+if not ocr_model:
+    st.error("❌ Failed to initialize PaddleOCR after 3 attempts.")
+    st.stop()
 
 # Streamlit UI
 st.set_page_config(page_title="PDF Info Extractor", page_icon="🔍")
@@ -139,7 +154,7 @@ if uploaded_file:
                         data = json.loads(match.group(0))
                         all_results.append(data)
                     except json.JSONDecodeError:
-                        st.warning("\u26a0\ufe0f Invalid JSON in response.")
+                        st.warning("⚠️ Invalid JSON in response.")
 
         final_result = {}
         for result in all_results:

@@ -15,7 +15,7 @@ from collections import defaultdict
 
 # Load environment variables
 load_dotenv()
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 # Initialize PaddleOCR (Disable angle classifier to avoid error)
 ocr_model = PaddleOCR(use_angle_cls=False, lang='en', use_gpu=False)
@@ -134,21 +134,20 @@ if uploaded_file and selected_fields:
                     except json.JSONDecodeError:
                         st.warning("⚠️ Invalid JSON in response.")
 
-        # Format as rows
-        max_rows = max((len(v) for v in combined_data.values()), default=0)
-        table_data = []
-        for i in range(max_rows):
-            row = {}
-            for key in selected_fields:
-                values = list(combined_data.get(key, []))
-                row[key] = values[i] if i < len(values) else ""
-            table_data.append(row)
+        # Convert combined data to vertical table format
+        vertical_data = []
+        for field in selected_fields:
+            values = list(combined_data.get(field, []))
+            vertical_data.append({
+                "Field": field,
+                "Extracted Data": "\n".join(values) if values else "—"
+            })
 
-        if table_data:
-            df = pd.DataFrame(table_data)
-            st.subheader("✅ Extracted Information (Multiple Values)")
+        if vertical_data:
+            df = pd.DataFrame(vertical_data)
+            st.subheader("✅ Extracted Information (Vertical Format)")
             st.dataframe(df)
-            st.download_button("⬇️ Download as JSON", json.dumps(table_data, indent=2), file_name="extracted_info.json")
+            st.download_button("⬇️ Download as JSON", json.dumps(vertical_data, indent=2), file_name="extracted_info.json")
             st.download_button("⬇️ Download as CSV", df.to_csv(index=False), file_name="extracted_info.csv")
         else:
             st.error("❌ No valid data extracted.")

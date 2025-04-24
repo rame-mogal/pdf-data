@@ -15,7 +15,7 @@ from collections import defaultdict
 
 # Load environment variables
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = st.secrets["OPENAI_API_KEY"]
 
 # Initialize PaddleOCR (Disable angle classifier to avoid error)
 ocr_model = PaddleOCR(use_angle_cls=False, lang='en', use_gpu=False)
